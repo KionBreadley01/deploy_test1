@@ -1,48 +1,42 @@
-import { nextresponse } from "next/server";
-import { writefile } from "fs/promises";
+import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import path from "path";
 
 cloudinary.config({
-  cloud_name: "",
-  api_key: "",
-  api_secret: "",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "gymgg",
+  api_key: process.env.CLOUDINARY_API_KEY || "664889547226734",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "0elwoQUffmpg0RW2cNztlLpfrns",
 });
 
-export async function post(request) {
-  const data = await request.formdata();
-  const image = data.get("image");
+export async function POST(request) {
+  try {
+    const data = await request.formData();
+    const image = data.get("image");
 
-  if (!image) {
-    return nextresponse.json("no se ha subido ninguna imagen", { status: 400 });
+    if (!image) {
+      return NextResponse.json({ message: "no se ha subido ninguna imagen" }, { status: 400 });
+    }
+
+    // Convert uploaded File to Buffer
+    const bytes = await image.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    // Upload as data URI to Cloudinary (avoids writing to disk)
+    const mime = image.type || "application/octet-stream";
+    const base64 = buffer.toString("base64");
+    const dataUri = `data:${mime};base64,${base64}`;
+
+    const response = await cloudinary.uploader.upload(dataUri, {
+      folder: "uploads", // optional
+    });
+
+    console.log("Uploaded to Cloudinary:", response.secure_url);
+
+    return NextResponse.json({
+      message: "imagen subida",
+      url: response.secure_url,
+    });
+  } catch (err) {
+    console.error("Upload error:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-
-  const bytes = await image.arraybuffer();
-  const buffer = buffer.from(bytes);
-
-  //   guardar en un archivo
-    const filepath = path.join(process.cwd(), "public", image.name);
-    await writefile(filepath, buffer)
-    const response = await cloudinary.uploader.upload(filepath);
-
-  // const response = await new promise((resolve, reject) => {
-  //   cloudinary.uploader
-  //     .upload_stream({}, (err, result) => {
-  //       if (err) {
-  //         reject(err);
-  //       }
-
-  //       resolve(result);
-  //     })
-  //     .end(buffer);
-  // });
-
-//   guardar en base de datos
-// procesar imagen
-  console.log(response.secure_url)
-
-  return nextresponse.json({
-    message: "imagen subida",
-    url: response.secure_url,
-  });
 }
